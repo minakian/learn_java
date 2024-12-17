@@ -1,0 +1,52 @@
+@startuml
+participant "Producer" as P
+participant "ActiveMQ1" as A1
+participant "Broker1" as B1
+participant "CDS" as D
+participant "Broker2" as B2
+participant "ActiveMQ2" as A2
+participant "Consumer" as C
+
+C->A2: Subscribe (DeviceID)
+group Subscription Process
+    loop until subscription is acknowledged
+        C-x A2: Publish Subscription Request
+    end
+    B2->A2: Subscribe (subscription_request)
+    C->A2: Publish Subscription Request
+    A2->B2: Receive Subscription Request
+    B2-->A2: Subscription Request Acknowledged\nPublished to requesting DeviceID
+    A2-->C: Subscription Acknowledged
+    C->A2: Subscribe \n(Desired topic from producer)
+end
+
+group B1 and B2 Init
+    B1->A1: Subscribe \n(subscription_request)
+    B1->D: Status Request
+    D-->B1: Status Response
+    B1->D: B2 Status Request
+    D->B2: Status Request
+    D<--B2: Status Response
+    B1<--D: B2 Status Response
+    B1->D: Subscription Init
+    D->B2: Subscription Init
+    B2->D: Subscription Init\n(C subscription info)
+    D->B1: Subscription Init\n(C subscription info)
+end
+
+' Producer sends message
+
+alt no subscribers: Message is lost
+    P->A1: Publish
+else message is passed to consumer
+    P->A1: Publish
+    activate A1
+    A1->B1: Send
+    deactivate A1
+    B1->D: Send
+    D->B2: Send
+    B2->A2: Send
+    A2->C: Send
+end
+
+@enduml
