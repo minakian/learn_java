@@ -11,9 +11,10 @@ import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
 import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
 import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
 import org.springframework.messaging.MessageChannel;
-import org.springframework.messaging.MessageHandler;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Configuration
+@EnableScheduling
 public class MqttConfig {
 
     @Value("${mqtt.broker.url}")
@@ -28,6 +29,18 @@ public class MqttConfig {
     @Value("${mqtt.password}")
     private String password;
 
+    @Value("${mqtt.connection.timeout:5}")
+    private int connectionTimeout;
+
+    @Value("${mqtt.keepalive.interval:30}")
+    private int keepAliveInterval;
+
+    @Value("${mqtt.max.reconnect.delay:2000}")
+    private int maxReconnectDelay;
+
+    @Value("${mqtt.completion.timeout:5000}")
+    private int completionTimeout;
+
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
@@ -38,11 +51,11 @@ public class MqttConfig {
         options.setUserName(username);
         options.setPassword(password.toCharArray());
 
-        // Add connection recovery options
         options.setAutomaticReconnect(true);
-        options.setConnectionTimeout(10);
-        options.setKeepAliveInterval(60);
-        options.setMaxReconnectDelay(5000);
+        options.setConnectionTimeout(connectionTimeout);
+        options.setKeepAliveInterval(keepAliveInterval);
+        options.setMaxReconnectDelay(maxReconnectDelay);
+        options.setMaxInflight(100);
 
         factory.setConnectionOptions(options);
         return factory;
@@ -53,6 +66,8 @@ public class MqttConfig {
         MqttPahoMessageHandler messageHandler = new MqttPahoMessageHandler(clientId + "-pub", mqttClientFactory());
         messageHandler.setAsync(true);
         messageHandler.setDefaultQos(1);
+        messageHandler.setDefaultRetained(false);
+        messageHandler.setCompletionTimeout(completionTimeout);
         return messageHandler;
     }
 
@@ -72,6 +87,7 @@ public class MqttConfig {
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(1);
         adapter.setOutputChannel(mqttInputChannel());
+        // Removed setRecoveryInterval as it's not available in this version
         return adapter;
     }
 }

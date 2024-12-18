@@ -12,6 +12,7 @@ import jakarta.annotation.PostConstruct;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class MqttSubscriptionService {
@@ -26,7 +27,7 @@ public class MqttSubscriptionService {
             MessageChannel mqttInputChannel) {
         this.mqttInbound = mqttInbound;
         this.mqttInputChannel = mqttInputChannel;
-        this.activeSubscriptions = new HashSet<>();
+        this.activeSubscriptions = ConcurrentHashMap.newKeySet(); // Thread-safe set
     }
 
     @PostConstruct
@@ -46,10 +47,7 @@ public class MqttSubscriptionService {
             logger.info("=== Subscribing to topic: {}", topic);
             mqttInbound.addTopic(topic, 1);
             activeSubscriptions.add(topic);
-            logger.info("=== Successfully subscribed to topic: {}", topic);
             logger.info("=== Current active subscriptions: {}", activeSubscriptions);
-        } else {
-            logger.info("=== Already subscribed to topic: {}", topic);
         }
     }
 
@@ -58,21 +56,19 @@ public class MqttSubscriptionService {
             logger.info("=== Unsubscribing from topic: {}", topic);
             mqttInbound.removeTopic(topic);
             activeSubscriptions.remove(topic);
-            logger.info("=== Successfully unsubscribed from topic: {}", topic);
-        } else {
-            logger.info("=== Not subscribed to topic: {}", topic);
+        }
+    }
+
+    // Only called by MqttConnectionManager
+    protected synchronized void resubscribeToTopics() {
+        Set<String> topics = new HashSet<>(activeSubscriptions);
+        for (String topic : topics) {
+            logger.info("=== Resubscribing to topic: {}", topic);
+            mqttInbound.addTopic(topic, 1);
         }
     }
 
     public Set<String> getActiveSubscriptions() {
         return new HashSet<>(activeSubscriptions);
-    }
-
-    public synchronized void resubscribeToTopics() {
-        Set<String> topics = new HashSet<>(activeSubscriptions);
-        for (String topic : topics) {
-            logger.info("Resubscribing to topic: {}", topic);
-            mqttInbound.addTopic(topic, 1);
-        }
     }
 }
